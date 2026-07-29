@@ -17,7 +17,9 @@ To prepare the required environment for the upcoming Cloud Computing Security Es
 - Install Docker version and check version with 'docker --version'
 - Run the 'hello-world' container
 
-![Docker Verification](Evidence/1.docker.png)
+![Docker Installation](Evidence/1A.docker-install.png)
+
+![Docker Verification](Evidence/1B.docker-verify.png)
 
 ### Step 2: AWS CLI Setup
 
