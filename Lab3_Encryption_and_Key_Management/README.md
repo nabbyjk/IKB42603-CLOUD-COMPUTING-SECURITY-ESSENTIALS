@@ -1,17 +1,19 @@
-# Lab 3: Encryption and Key Management
 # Lab 3: Encryption & Key Management
 
 ## 1. Lab Overview
 
-This lab demonstrates encryption and key management in a cloud-native environment using OpenSSL, Docker, Nginx, AWS CLI, and LocalStack.
+This lab demonstrates encryption and key management techniques in a cloud-native environment.
 
-The lab focuses on three security areas:
+The lab covers:
 
-- Data integrity and authenticity
-- Encryption in transit
-- Encryption at rest and key management
-
-The main activities include RSA digital signatures, SHA-256 hashing, TLS configuration, KMS encryption, data key generation, and KMS key lifecycle management.
+- Symmetric encryption using AES
+- Asymmetric encryption and digital signatures using RSA
+- Encryption in transit using TLS/HTTPS
+- AWS KMS operations using LocalStack
+- Data key generation and envelope encryption
+- Tenant-specific key management
+- Cryptographic erasure
+- SHA-256 integrity verification and hash chaining
 
 ---
 
@@ -19,12 +21,14 @@ The main activities include RSA digital signatures, SHA-256 hashing, TLS configu
 
 At the end of this lab, the following concepts were demonstrated:
 
-1. Digital signatures can be used to verify data integrity and authenticity.
-2. SHA-256 hashing can be used to verify file integrity.
-3. TLS protects sensitive data while it is transmitted across a network.
-4. KMS can be used to create and manage encryption keys.
-5. Data encryption keys can be generated using KMS.
-6. KMS key lifecycle operations affect the availability of encrypted data.
+1. Symmetric encryption and decryption using AES.
+2. RSA key-pair generation and digital signature verification.
+3. TLS encryption for data in transit.
+4. KMS key creation and encryption operations.
+5. Data key generation and envelope encryption.
+6. Key separation between tenants.
+7. Cryptographic erasure and its effect on encrypted data.
+8. SHA-256 hashing and integrity verification.
 
 ---
 
@@ -33,12 +37,11 @@ At the end of this lab, the following concepts were demonstrated:
 ### Tools Used
 
 - Kali Linux
-- Docker
 - OpenSSL
+- Docker
 - Nginx
 - AWS CLI
 - LocalStack
-- AWS KMS-compatible API
 
 ### LocalStack Endpoint
 
@@ -50,182 +53,101 @@ At the end of this lab, the following concepts were demonstrated:
 
 ---
 
-# 4. Task 1 — Digital Signature
+# 4. Task 1 — AES Symmetric Encryption
 
-## 4.1 Create the Record
+AES symmetric encryption was used to encrypt a file and then decrypt it again using the same encryption key.
 
-The record file was created using:
+The encrypted file was generated using OpenSSL:
 
-    echo "Patient: Ahmad, Diagnosis: confidential" > record.txt
-    cat record.txt
+    openssl enc -aes-256-cbc -salt -in record.txt -out record.enc -pass pass:'<PASSWORD>'
 
-The record contains confidential information that will be used to demonstrate digital signatures and integrity verification.
+The encrypted file was then decrypted:
 
-![Record File](screenshots/SS01_Task1_AES_Encrypted.png)
+    openssl enc -d -aes-256-cbc -in record.enc -out record.dec -pass pass:'<PASSWORD>'
+
+The decrypted content was compared with the original record:
+
+    diff record.txt record.dec
+
+The matching result demonstrates that the encrypted data could be successfully recovered using the correct key.
+
+![Task 1 - AES Encrypted](screenshots/SS01_Task1_AES_Encrypted.png)
+
+![Task 1 - AES Decryption Match](screenshots/SS02_Task1_AES_Decryption_Match.png)
 
 ---
 
-## 4.2 Generate RSA Key Pair
+# 5. Task 2 — RSA Key Pair and Digital Signature
+
+## 5.1 Generate RSA Key Pair
 
 An RSA private key was generated using OpenSSL:
 
     openssl genrsa -out private.pem 2048
 
-The corresponding public key was extracted:
+The public key was extracted from the private key:
 
     openssl rsa -in private.pem -pubout -out public.pem
 
-The generated key files were verified:
+The generated key pair was verified:
 
     ls -l private.pem public.pem
 
-The private key is used to create the digital signature, while the public key is used to verify the signature.
+The private key is kept secret and is used to generate the digital signature. The public key can be shared and is used to verify the signature.
 
-![RSA Key Pair](screenshots/SS02_Task1_AES_Decryption_Match.png)
+![Task 2 - RSA Key Pair](screenshots/SS03_Task2_RSA_KeyPair.png)
 
 ---
 
-## 4.3 Generate the RSA Digital Signature
+## 5.2 Generate and Verify Digital Signature
 
 The record was signed using the RSA private key and SHA-256:
 
     openssl dgst -sha256 -sign private.pem -out record.sig record.txt
 
-The generated signature file was verified:
-
-    ls -l record.sig
-
-The digital signature provides integrity and authenticity protection for the record.
-
-![RSA Signature](screenshots/SS03_Task2_RSA_KeyPair.png)
-
----
-
-## 4.4 Verify the RSA Signature
-
-The signature was verified using the public key:
+The signature was verified using the RSA public key:
 
     openssl dgst -sha256 -verify public.pem -signature record.sig record.txt
 
-The result was:
+The verification result was:
 
     Verified OK
 
-The `Verified OK` result confirms that the signature is valid and that the contents of the record match the data that was originally signed.
+The successful verification demonstrates that the record has not been modified and that the signature was generated using the corresponding private key.
 
-![RSA Signature Verified](screenshots/SS04_Task2_RSA_Signature_Verified.png)
-
----
-
-# 5. Task 2 — File Integrity Verification
-
-The SHA-256 hash of the record was calculated using:
-
-    sha256sum record.txt
-
-The resulting hash was:
-
-    9345a32351cc1ad03e8b318059b753da6cd4e325688da97a01599b32bc945dd5  record.txt
-
-SHA-256 provides a cryptographic fingerprint of the file. If the contents of the file are modified, its hash value will also change.
-
-![SHA-256 Hash](screenshots/SS05_Task3_TLS_HTTPS.png)
+![Task 2 - RSA Signature Verified](screenshots/SS04_Task2_RSA_Signature_Verified.png)
 
 ---
 
 # 6. Task 3 — Encryption in Transit Using TLS
 
-## 6.1 Generate a Self-Signed Certificate
+TLS was used to protect data transmitted between a client and an Nginx HTTPS server.
 
-A self-signed RSA certificate and private key were generated using OpenSSL:
+A self-signed certificate was generated using OpenSSL:
 
-    openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem \
-    -days 7 -nodes -subj '/CN=localhost'
+    openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 7 -nodes -subj "/CN=localhost"
 
-The generated certificate and private key were used to configure the HTTPS server.
+Nginx was configured to use the generated certificate and private key.
 
-![TLS Certificate](screenshots/SS06_Task4_LocalStack_KMS.png)
-
----
-
-## 6.2 Configure Nginx
-
-An Nginx configuration file was created using:
-
-    nano nginx.conf
-
-The configuration used HTTPS on port 443:
-
-    events {}
-
-    http {
-        server {
-            listen 443 ssl;
-            server_name localhost;
-
-            ssl_certificate /etc/nginx/cert.pem;
-            ssl_certificate_key /etc/nginx/key.pem;
-
-            location / {
-                root /usr/share/nginx/html;
-            }
-
-            location = /record.txt {
-                alias /usr/share/nginx/html/record.txt;
-            }
-        }
-    }
-
-The configuration enables encrypted communication between the client and the Nginx server.
-
----
-
-## 6.3 Run the Nginx HTTPS Container
-
-The Nginx container was started using:
-
-    docker run --rm -d --name tls -p 8443:443 \
-    -v $(pwd)/nginx.conf:/etc/nginx/nginx.conf:ro \
-    -v $(pwd)/cert.pem:/etc/nginx/cert.pem:ro \
-    -v $(pwd)/key.pem:/etc/nginx/key.pem:ro \
-    -v $(pwd)/record.txt:/usr/share/nginx/html/record.txt:ro \
-    nginx
-
-The running container was verified using:
-
-    docker ps
-
-The `tls` container was successfully running with port `8443` mapped to HTTPS port `443`.
-
-![Nginx TLS Container](screenshots/SS07_Task4_KMS_KeyID.png)
-
----
-
-## 6.4 Access the Record Through HTTPS
-
-The record was accessed through the HTTPS endpoint:
+The HTTPS service was accessed using:
 
     curl -k https://localhost:8443/record.txt
 
-The result was:
+The successful HTTPS response demonstrates that the record could be transferred through an encrypted TLS connection.
 
-    Patient: Ahmad, Diagnosis: confidential
-
-The successful response demonstrates that the record can be accessed through an encrypted HTTPS connection.
-
-![HTTPS Record Access](screenshots/SS08_Task4_KMS_Encryption.png)
+![Task 3 - TLS HTTPS](screenshots/SS05_Task3_TLS_HTTPS.png)
 
 ---
 
-# 7. Task 4 — Encryption at Rest Using AWS KMS
+# 7. Task 4 — AWS KMS Using LocalStack
 
 ## 7.1 Start LocalStack
 
-The LocalStack container was started using:
+The LocalStack container was started:
 
     docker start localstack
 
-The running containers were verified:
+The running container was verified:
 
     docker ps
 
@@ -233,39 +155,39 @@ The LocalStack endpoint was configured:
 
     export EP=http://localhost:4566
 
-The available KMS keys were checked:
+KMS keys were checked using:
 
     aws $EP kms list-keys
 
 LocalStack provides a local AWS-compatible environment for testing KMS operations.
 
-![LocalStack KMS](screenshots/SS09_Task5_Data_Key.png)
+![Task 4 - LocalStack KMS](screenshots/SS06_Task4_LocalStack_KMS.png)
 
 ---
 
-## 7.2 Create the Tenant-A Master Key
+## 7.2 Create KMS Key
 
-A KMS master key was created using:
+A KMS key was created for the tenant:
 
     aws $EP kms create-key --description 'CCSE tenant-A master key'
 
-The original tenant-A Key ID used during the lab was:
+The Key ID was obtained from the command output and stored in an environment variable:
 
-    d2d20377-1d97-4a31-81a1-2a976384b329
+    KEY_A=<KEY_ID>
 
-The key ID was assigned to the environment variable:
+The key ID was verified using:
 
-    KEY_A=d2d20377-1d97-4a31-81a1-2a976384b329
+    aws $EP kms list-keys
 
-The KMS master key is used to perform encryption operations and protect data encryption keys.
+The KMS key is used as a master key for cryptographic operations.
 
-![Tenant A KMS Key](screenshots/SS10_Task5_Data_Key_Files.png)
+![Task 4 - KMS Key ID](screenshots/SS07_Task4_KMS_KeyID.png)
 
 ---
 
 ## 7.3 Encrypt Data Using KMS
 
-The plaintext value `hello` was encrypted using the KMS key:
+The plaintext value was encrypted using the KMS key:
 
     aws $EP kms encrypt \
     --key-id $KEY_A \
@@ -273,17 +195,19 @@ The plaintext value `hello` was encrypted using the KMS key:
     --query CiphertextBlob \
     --output text
 
-The command returned the encrypted ciphertext blob.
+The command returned a ciphertext blob.
 
-This demonstrates encryption at rest using a KMS-managed key.
+This demonstrates the use of a KMS-managed key to encrypt data.
 
-![KMS Encryption](screenshots/SS11_Task5_Envelope_Encryption.png)
+![Task 4 - KMS Encryption](screenshots/SS08_Task4_KMS_Encryption.png)
 
 ---
 
-## 7.4 Generate a Data Key
+# 8. Task 5 — Data Key and Envelope Encryption
 
-An AES-256 data key was generated using:
+## 8.1 Generate a Data Key
+
+A 256-bit AES data key was generated using KMS:
 
     aws $EP kms generate-data-key \
     --key-id $KEY_A \
@@ -291,274 +215,203 @@ An AES-256 data key was generated using:
     --query '[Plaintext,CiphertextBlob]' \
     --output text
 
-The plaintext data key obtained during the lab was stored as Base64:
+The generated plaintext data key was saved for the encryption operation while the encrypted version was retained as the protected data key.
 
-    echo '8uovqV1tAAZ0YP7qCoSR2SXN/hEaaEXr/+GwwTcuHCY=' > datakey.b64
-
-The generated data key can be used for symmetric encryption while its encrypted form can be protected using the KMS master key.
-
-![KMS Data Key](screenshots/SS12_Task5_Plaintext_Key_Removed.png)
+![Task 5 - Data Key](screenshots/SS09_Task5_Data_Key.png)
 
 ---
 
-# 8. Task 5 — Encryption Using the Data Key
+## 8.2 Store the Data Key Files
 
-## 8.1 Decode the Data Key
+The generated data key material was stored in files for the envelope encryption demonstration.
 
-The Base64-encoded data key was decoded:
+The relevant files were checked using:
+
+    ls -l datakey*
+
+The plaintext and encrypted forms demonstrate the difference between the usable data key and the KMS-protected data key.
+
+![Task 5 - Data Key Files](screenshots/SS10_Task5_Data_Key_Files.png)
+
+---
+
+## 8.3 Envelope Encryption
+
+Envelope encryption was demonstrated by using the generated data key to protect the actual data while KMS protects the data key.
+
+The data key was decoded:
 
     base64 -d datakey.b64 > datakey.bin
 
-The resulting binary file contains the data encryption key.
-
----
-
-## 8.2 Encrypt the Record
-
-The record was encrypted using AES-256-CBC:
+The record was encrypted using the data key:
 
     openssl enc -aes-256-cbc \
     -in record.txt \
     -out record.enc \
     -pass file:./datakey.bin
 
-The encrypted file was verified:
+The encrypted data and protected key can then be stored separately.
 
-    ls -l record.enc
+This approach avoids using the KMS master key directly for every piece of application data.
 
-The record was successfully converted into encrypted ciphertext using the generated data key.
-
-![Encrypted Record](screenshots/SS13_Task6_TenantB_KeyID.png)
+![Task 5 - Envelope Encryption](screenshots/SS11_Task5_Envelope_Encryption.png)
 
 ---
 
-# 9. Task 6 — KMS Key Lifecycle Management
+## 8.4 Remove Plaintext Data Key
 
-## 9.1 Create Tenant-B Master Key
+After the encryption operation, the plaintext data key was removed:
 
-A separate KMS master key was created for tenant-B:
+    rm -f datakey.bin
+
+The remaining encrypted data key can be retained for future decryption through KMS.
+
+Removing the plaintext key reduces the risk of exposing sensitive key material.
+
+![Task 5 - Plaintext Key Removed](screenshots/SS12_Task5_Plaintext_Key_Removed.png)
+
+---
+
+# 9. Task 6 — Tenant Key Separation and Cryptographic Erasure
+
+## 9.1 Create a Tenant-B KMS Key
+
+A separate KMS key was created for tenant-B:
 
     aws $EP kms create-key --description 'CCSE tenant-B master key'
 
-The tenant-B Key ID used during the lab was:
+The resulting Key ID was recorded and used as the tenant-B key.
 
-    87058c75-dd26-4b57-820f-ac483148f691
+Using separate keys provides logical cryptographic separation between tenants.
 
-The key ID was assigned using:
-
-    KEY_B=87058c75-dd26-4b57-820f-ac483148f691
-
-The separate key demonstrates logical separation of encryption keys between tenants.
-
-![Tenant B KMS Key](screenshots/SS14_Task6_Cryptographic_Erasure_Failed.png)
+![Task 6 - Tenant B Key ID](screenshots/SS13_Task6_TenantB_KeyID.png)
 
 ---
 
-## 9.2 Disable Tenant-A Key
+## 9.2 Cryptographic Erasure
 
-The tenant-A key was disabled:
+The effect of KMS key lifecycle management on encrypted data was demonstrated.
 
-    aws $EP kms disable-key --key-id $KEY_A
+An encrypted data key was used with a KMS key that was no longer available for normal decryption operations.
 
-Disabling the key prevents normal cryptographic operations from being performed using the key.
+The decryption operation resulted in a KMS error because the required key was unavailable.
 
-![KMS Key Disabled](screenshots/SS15_Task7_Original_SHA256.png)
+This demonstrates the principle of cryptographic erasure: destroying or making the encryption key unavailable can make the encrypted data inaccessible without physically overwriting every storage block.
 
----
-
-## 9.3 Schedule Tenant-A Key for Deletion
-
-The key was scheduled for deletion:
-
-    aws $EP kms schedule-key-deletion \
-    --key-id $KEY_A \
-    --pending-window-in-days 7
-
-The key entered the `PendingDeletion` state with a seven-day waiting period.
-
-This demonstrates the importance of key lifecycle management because deleting or disabling a key can affect access to encrypted data.
-
-![KMS Key Pending Deletion](screenshots/SS16_Task7_Tampered_SHA256.png)
+![Task 6 - Cryptographic Erasure](screenshots/SS14_Task6_Cryptographic_Erasure_Failed.png)
 
 ---
 
-## 9.4 Attempt Decryption While Key Is Pending Deletion
+# 10. Task 7 — SHA-256 Integrity and Hash Chain
 
-The encrypted data key was decoded:
+## 10.1 Calculate Original SHA-256
 
-    base64 -d datakey.enc > datakey.enc.bin
-
-A decryption attempt was performed:
-
-    aws $EP kms decrypt \
-    --ciphertext-blob fileb://datakey.enc.bin
-
-The operation returned:
-
-    KMSInvalidStateException
-
-The error occurred because the KMS key was in the `PendingDeletion` state.
-
-This demonstrates that encrypted data may become inaccessible when the encryption key required for decryption is unavailable.
-
-![KMS Decryption Error](screenshots/SS17_Task7_Hash_Chain.png)
-
----
-
-# 10. Task 7 — LocalStack Restart and KMS Key Recreation
-
-## 10.1 Restart LocalStack
-
-LocalStack was restarted using:
-
-    docker start localstack
-
-The container status was verified:
-
-    docker ps
-
-LocalStack successfully returned to the running state.
-
-![LocalStack Restart](screenshots/SS18_Final_RSA_Verification.png)
-
----
-
-## 10.2 Check the KMS Keys
-
-The KMS key list was checked:
-
-    aws --endpoint-url=http://localhost:4566 kms list-keys
-
-The result showed:
-
-    {
-        "Keys": []
-    }
-
-This occurred because the previous LocalStack KMS state was no longer available after the environment was restarted.
-
----
-
-## 10.3 Create a New Tenant-A Master Key
-
-A new tenant-A master key was created:
-
-    aws --endpoint-url=http://localhost:4566 kms create-key \
-    --description 'CCSE tenant-A master key'
-
-The new Key ID generated during the lab was:
-
-    b8119053-facb-4703-9c20-ce740bca889e
-
-The new key was verified using:
-
-    aws --endpoint-url=http://localhost:4566 kms list-keys
-
-The newly created key appeared in the KMS key list.
-
-
----
-
-# 11. Task 8 — Final Verification
-
-## 11.1 Verify SHA-256 Integrity
-
-The SHA-256 hash of the record was calculated again:
+The SHA-256 hash of the original record was calculated:
 
     sha256sum record.txt
 
-The hash remained:
+The resulting hash provides a cryptographic fingerprint of the original data.
 
-    9345a32351cc1ad03e8b318059b753da6cd4e325688da97a01599b32bc945dd5  record.txt
-
-The matching hash confirms that the record contents remained unchanged.
-
+![Task 7 - Original SHA256](screenshots/SS15_Task7_Original_SHA256.png)
 
 ---
 
-## 11.2 Verify RSA Digital Signature
+## 10.2 Detect File Modification
 
-The RSA signature was verified again:
+The record was modified and its SHA-256 hash was calculated again:
+
+    sha256sum record.txt
+
+The resulting hash differed from the original hash.
+
+This demonstrates that even a small change to the file produces a different cryptographic hash, allowing data modification to be detected.
+
+![Task 7 - Tampered SHA256](screenshots/SS16_Task7_Tampered_SHA256.png)
+
+---
+
+## 10.3 Hash Chain
+
+A hash chain was demonstrated by using the output hash from one record as part of the input for the next record.
+
+The hash chain provides a method of detecting changes to previously recorded data because modifying an earlier record changes the subsequent hash values.
+
+![Task 7 - Hash Chain](screenshots/SS17_Task7_Hash_Chain.png)
+
+---
+
+# 11. Final Verification
+
+The RSA signature was verified again using:
 
     openssl dgst -sha256 -verify public.pem -signature record.sig record.txt
 
-The result was:
+The verification result was:
 
     Verified OK
 
-The successful verification confirms that the signed record remained authentic and unchanged.
+This confirms that the signed record remained valid and that the data integrity and authenticity check was successful.
 
+![Final RSA Verification](screenshots/SS18_Final_RSA_Verification.png)
 
 ---
 
-# 12. GitHub Documentation
+# 12. Security Best-Practices Checklist
 
-The project repository was opened:
+- [x] AES was used for symmetric encryption.
+- [x] RSA was used for asymmetric cryptography and digital signatures.
+- [x] SHA-256 was used for integrity verification.
+- [x] TLS was used to protect data in transit.
+- [x] KMS was used for encryption key management.
+- [x] Data keys were used for envelope encryption.
+- [x] Separate KMS keys were demonstrated for different tenants.
+- [x] Plaintext key material was removed after use.
+- [x] Cryptographic erasure was demonstrated.
+- [x] Hash chaining was used to detect changes to recorded data.
 
-    cd ~/IKB42603-CLOUD-COMPUTING-SECURITY-ESSENTIALS
+---
 
-The Lab 3 directory was verified:
+# 13. Conclusion
 
-    ls Lab3_Encryption_and_Key_Management
+This lab demonstrated the use of encryption and key management techniques in a cloud environment.
 
-The Git status was checked:
+AES provided symmetric encryption for data, while RSA provided asymmetric cryptography and digital signature verification. TLS protected data while it was transmitted over a network.
 
-    git status
+LocalStack was used to demonstrate AWS KMS operations, including key creation, encryption, data key generation, tenant-specific key separation, and cryptographic erasure.
 
-The Lab 3 README was added:
+The final SHA-256 and hash-chain exercises demonstrated how cryptographic hashes can be used to detect changes to data.
 
-    git add Lab3_Encryption_and_Key_Management/README.md
+Overall, the lab demonstrated that effective cloud security requires protection of data both in transit and at rest, together with proper encryption key management and integrity controls.
+
+---
+
+# 14. GitHub Documentation
+
+The Lab 3 directory was accessed using:
+
+    cd ~/IKB42603-CLOUD-COMPUTING-SECURITY-ESSENTIALS/Lab3_Encryption_and_Key_Management
+
+The README and screenshots were added to Git:
+
+    git add README.md screenshots/
 
 The changes were committed:
 
-    git commit -m "Add Lab 3 encryption and key management documentation"
+    git commit -m "Complete Lab 3 documentation"
 
-The changes were pushed to GitHub:
+The documentation was pushed to GitHub:
 
-    git push
+    git push origin main
 
-The latest commit was verified:
+The final Git status was checked using:
 
-    git log -1 --oneline
-
-The Lab 3 documentation was successfully committed and pushed to the GitHub repository.
-
+    git status
 
 ---
 
-# 13. Security Best-Practices Checklist
+# 15. Cleanup
 
-- [x] RSA digital signatures were used to verify data authenticity and integrity.
-- [x] SHA-256 hashing was used to verify file integrity.
-- [x] TLS was configured to protect data in transit.
-- [x] AWS KMS was used to demonstrate encryption at rest.
-- [x] Data encryption keys were generated using KMS.
-- [x] Separate KMS keys were demonstrated for different tenants.
-- [x] KMS key lifecycle operations were tested.
-- [x] The impact of key deletion on encrypted data was demonstrated.
-
----
-
-# 14. Conclusion
-
-This lab demonstrated important encryption and key management techniques in a cloud-native environment.
-
-RSA digital signatures were used to provide data authenticity and integrity, while SHA-256 was used to verify that the record had not been modified.
-
-TLS was configured using Nginx to protect data in transit. AWS KMS through LocalStack was then used to demonstrate encryption at rest, data key generation, key disabling, and key deletion.
-
-The lab also demonstrated that encryption key availability is critical because encrypted data may become inaccessible when the required KMS key is disabled or pending deletion.
-
----
-
-# 15. Cleanup & Teardown
-
-After all lab activities and documentation have been completed, the Nginx container can be stopped:
+After completing the lab and saving all required evidence, the LocalStack and Nginx containers can be stopped:
 
     docker stop tls
-
-The LocalStack container can also be stopped:
-
     docker stop localstack
-
-The generated lab files can be retained for documentation and assessment purposes.
