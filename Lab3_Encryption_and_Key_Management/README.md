@@ -61,7 +61,7 @@ The record file was created using:
 
 The record contains confidential information that will be used to demonstrate digital signatures and integrity verification.
 
-![Record File](screenshots/SS01_Record_File.png)
+![Record File](screenshots/SS01_Task1_AES_Encrypted.png)
 
 ---
 
@@ -81,7 +81,7 @@ The generated key files were verified:
 
 The private key is used to create the digital signature, while the public key is used to verify the signature.
 
-![RSA Key Pair](screenshots/SS02_RSA_Keys.png)
+![RSA Key Pair](screenshots/SS02_Task1_AES_Decryption_Match.png)
 
 ---
 
@@ -97,7 +97,7 @@ The generated signature file was verified:
 
 The digital signature provides integrity and authenticity protection for the record.
 
-![RSA Signature](screenshots/SS03_RSA_Signature.png)
+![RSA Signature](screenshots/SS03_Task2_RSA_KeyPair.png)
 
 ---
 
@@ -113,7 +113,7 @@ The result was:
 
 The `Verified OK` result confirms that the signature is valid and that the contents of the record match the data that was originally signed.
 
-![RSA Signature Verified](screenshots/SS04_RSA_Signature_Verified_OK.png)
+![RSA Signature Verified](screenshots/SS04_Task2_RSA_Signature_Verified.png)
 
 ---
 
@@ -129,7 +129,7 @@ The resulting hash was:
 
 SHA-256 provides a cryptographic fingerprint of the file. If the contents of the file are modified, its hash value will also change.
 
-![SHA-256 Hash](screenshots/SS05_SHA256_Record_Hash.png)
+![SHA-256 Hash](screenshots/SS05_Task3_TLS_HTTPS.png)
 
 ---
 
@@ -144,7 +144,7 @@ A self-signed RSA certificate and private key were generated using OpenSSL:
 
 The generated certificate and private key were used to configure the HTTPS server.
 
-![TLS Certificate](screenshots/SS06_TLS_Certificate.png)
+![TLS Certificate](screenshots/SS06_Task4_LocalStack_KMS.png)
 
 ---
 
@@ -197,7 +197,7 @@ The running container was verified using:
 
 The `tls` container was successfully running with port `8443` mapped to HTTPS port `443`.
 
-![Nginx TLS Container](screenshots/SS07_TLS_Nginx_Container.png)
+![Nginx TLS Container](screenshots/SS07_Task4_KMS_KeyID.png)
 
 ---
 
@@ -213,7 +213,7 @@ The result was:
 
 The successful response demonstrates that the record can be accessed through an encrypted HTTPS connection.
 
-![HTTPS Record Access](screenshots/SS08_HTTPS_Record_Access.png)
+![HTTPS Record Access](screenshots/SS08_Task4_KMS_Encryption.png)
 
 ---
 
@@ -239,7 +239,7 @@ The available KMS keys were checked:
 
 LocalStack provides a local AWS-compatible environment for testing KMS operations.
 
-![LocalStack KMS](screenshots/SS09_LocalStack_KMS.png)
+![LocalStack KMS](screenshots/SS09_Task5_Data_Key.png)
 
 ---
 
@@ -259,7 +259,7 @@ The key ID was assigned to the environment variable:
 
 The KMS master key is used to perform encryption operations and protect data encryption keys.
 
-![Tenant A KMS Key](screenshots/SS10_KMS_Tenant_A_Key.png)
+![Tenant A KMS Key](screenshots/SS10_Task5_Data_Key_Files.png)
 
 ---
 
@@ -277,7 +277,7 @@ The command returned the encrypted ciphertext blob.
 
 This demonstrates encryption at rest using a KMS-managed key.
 
-![KMS Encryption](screenshots/SS11_KMS_Encrypt.png)
+![KMS Encryption](screenshots/SS11_Task5_Envelope_Encryption.png)
 
 ---
 
@@ -297,7 +297,7 @@ The plaintext data key obtained during the lab was stored as Base64:
 
 The generated data key can be used for symmetric encryption while its encrypted form can be protected using the KMS master key.
 
-![KMS Data Key](screenshots/SS12_KMS_Data_Key.png)
+![KMS Data Key](screenshots/SS12_Task5_Plaintext_Key_Removed.png)
 
 ---
 
@@ -328,7 +328,7 @@ The encrypted file was verified:
 
 The record was successfully converted into encrypted ciphertext using the generated data key.
 
-![Encrypted Record](screenshots/SS13_Encrypted_Record.png)
+![Encrypted Record](screenshots/SS13_Task6_TenantB_KeyID.png)
 
 ---
 
@@ -350,7 +350,7 @@ The key ID was assigned using:
 
 The separate key demonstrates logical separation of encryption keys between tenants.
 
-![Tenant B KMS Key](screenshots/SS14_KMS_Tenant_B_Key.png)
+![Tenant B KMS Key](screenshots/SS14_Task6_Cryptographic_Erasure_Failed.png)
 
 ---
 
@@ -362,7 +362,7 @@ The tenant-A key was disabled:
 
 Disabling the key prevents normal cryptographic operations from being performed using the key.
 
-![KMS Key Disabled](screenshots/SS15_KMS_Key_Disabled.png)
+![KMS Key Disabled](screenshots/SS15_Task7_Original_SHA256.png)
 
 ---
 
@@ -378,7 +378,7 @@ The key entered the `PendingDeletion` state with a seven-day waiting period.
 
 This demonstrates the importance of key lifecycle management because deleting or disabling a key can affect access to encrypted data.
 
-![KMS Key Pending Deletion](screenshots/SS16_KMS_Key_Pending_Deletion.png)
+![KMS Key Pending Deletion](screenshots/SS16_Task7_Tampered_SHA256.png)
 
 ---
 
@@ -401,7 +401,7 @@ The error occurred because the KMS key was in the `PendingDeletion` state.
 
 This demonstrates that encrypted data may become inaccessible when the encryption key required for decryption is unavailable.
 
-![KMS Decryption Error](screenshots/SS17_KMS_Decrypt_Error.png)
+![KMS Decryption Error](screenshots/SS17_Task7_Hash_Chain.png)
 
 ---
 
@@ -419,7 +419,7 @@ The container status was verified:
 
 LocalStack successfully returned to the running state.
 
-![LocalStack Restart](screenshots/SS18_LocalStack_Restarted.png)
+![LocalStack Restart](screenshots/SS18_Final_RSA_Verification.png)
 
 ---
 
@@ -456,7 +456,6 @@ The new key was verified using:
 
 The newly created key appeared in the KMS key list.
 
-![New Tenant A KMS Key](screenshots/SS19_New_KMS_Tenant_A_Key.png)
 
 ---
 
@@ -474,7 +473,6 @@ The hash remained:
 
 The matching hash confirms that the record contents remained unchanged.
 
-![Final SHA-256 Verification](screenshots/SS20_Final_SHA256.png)
 
 ---
 
@@ -490,7 +488,6 @@ The result was:
 
 The successful verification confirms that the signed record remained authentic and unchanged.
 
-![Final RSA Verification](screenshots/SS21_Final_RSA_Verification.png)
 
 ---
 
@@ -526,7 +523,6 @@ The latest commit was verified:
 
 The Lab 3 documentation was successfully committed and pushed to the GitHub repository.
 
-![GitHub Lab 3 Documentation](screenshots/SS22_GitHub_Lab3_Documentation.png)
 
 ---
 
