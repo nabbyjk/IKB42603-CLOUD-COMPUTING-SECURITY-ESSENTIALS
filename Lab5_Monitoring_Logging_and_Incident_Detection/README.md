@@ -1,13 +1,24 @@
 # IKB42603 Cloud Computing Security Essentials
-## Lab 5.1 — Management Plane Audit and BCDR
+## Lab 5 Addendum — Management Plane Audit, Backup & the Restore Drill
 
 ---
 
-# Objective
+## Objective
 
-This lab focuses on management plane auditing, audit trail integrity, backup and disaster recovery, Recovery Point Objective (RPO), Recovery Time Objective (RTO), and the difference between object versioning and a separate backup destination.
+This lab focuses on management plane auditing, backup, versioning, disaster recovery, and recovery measurement using LocalStack.
 
-The lab uses Kali Linux, Docker, LocalStack, and AWS CLI commands to reconstruct a management plane audit trail, seal the trail with SHA-256, perform a tamper-verification test, create a primary and disaster recovery (DR) backup bucket, simulate a destructive incident, restore the objects, measure RTO, and compare versioning with a separate backup path.
+The objectives are to:
+
+- Reconstruct a management plane audit trail from LocalStack request logs.
+- Filter security-relevant administrative events.
+- Seal the audit trail using a SHA-256 digest.
+- Detect tampering against the audit trail.
+- Create a primary storage bucket and a separate DR backup bucket.
+- Back up 200 objects from the primary bucket to the DR bucket.
+- Simulate a destructive incident.
+- Restore the data from the DR backup and measure the RTO.
+- Compare in-place versioning with a separate backup destination.
+- Explain RTO, RPO, audit trail integrity, and recovery resilience.
 
 ---
 
@@ -17,26 +28,28 @@ The lab uses Kali Linux, Docker, LocalStack, and AWS CLI commands to reconstruct
 
 ### Command
 
-    docker run -d --name localstack -p 4566:4566 -e SERVICES=s3,iam,sts localstack/localstack
+    docker rm -f localstack 2>/dev/null
+
+    docker run -d --name localstack -p 4566:4566 \
+      -e LOCALSTACK_AUTH_TOKEN=$LOCALSTACK_AUTH_TOKEN \
+      -e DEBUG=1 \
+      localstack/localstack-pro:latest
 
 ### Result / Output
 
-LocalStack container was started.
+The LocalStack container was started successfully.
 
 ### Explanation
 
-LocalStack provides a local AWS-compatible environment for performing the cloud security exercises.
+LocalStack provides the AWS-compatible environment used for the lab. The `DEBUG=1` setting makes LocalStack record the AWS API calls it serves, which is used as the raw material for reconstructing the management plane audit trail.
 
-### Screenshot
+### Evidence
 
-    01_LocalStack_AWS_CLI_Connection.png
+![LocalStack AWS CLI Connection](evidence/01_LocalStack_AWS_CLI_Connection.png)
 
-### Move Screenshot
+---
 
-    mv ~/Pictures/01_LocalStack_AWS_CLI_Connection.png evidence/
-
-
-## Step 2 — Wait for LocalStack Services
+## Step 2 — Wait for LocalStack to Become Ready
 
 ### Command
 
@@ -44,20 +57,13 @@ LocalStack provides a local AWS-compatible environment for performing the cloud 
 
 ### Result / Output
 
-The command returned to the terminal prompt after LocalStack became ready.
+The command returned to the terminal after the LocalStack service became available.
 
 ### Explanation
 
-The command waits until the LocalStack service is actually available before continuing with AWS CLI operations.
+The container can start before all services are ready. This command waits until the LocalStack endpoint is actually serving requests.
 
-### Screenshot
-
-    01_LocalStack_AWS_CLI_Connection.png
-
-### Move Screenshot
-
-    mv ~/Pictures/01_LocalStack_AWS_CLI_Connection.png evidence/
-
+---
 
 ## Step 3 — Set the LocalStack Endpoint
 
@@ -67,20 +73,13 @@ The command waits until the LocalStack service is actually available before cont
 
 ### Result / Output
 
-The LocalStack endpoint was assigned to the `EP` environment variable.
+The endpoint variable was configured for the AWS CLI.
 
 ### Explanation
 
-The variable allows the AWS CLI commands to communicate with the local LocalStack endpoint instead of the real AWS environment.
+The `EP` variable allows AWS CLI commands to communicate with the LocalStack endpoint instead of the real AWS environment.
 
-### Screenshot
-
-    01_LocalStack_AWS_CLI_Connection.png
-
-### Move Screenshot
-
-    mv ~/Pictures/01_LocalStack_AWS_CLI_Connection.png evidence/
-
+---
 
 ## Step 4 — Verify AWS CLI Connectivity
 
@@ -98,23 +97,19 @@ The variable allows the AWS CLI commands to communicate with the local LocalStac
 
 ### Explanation
 
-The output confirms that the AWS CLI can communicate with LocalStack successfully.
+The output confirms that the AWS CLI successfully communicated with LocalStack.
 
-### Screenshot
+### Evidence
 
-    01_LocalStack_AWS_CLI_Connection.png
-
-### Move Screenshot
-
-    mv ~/Pictures/01_LocalStack_AWS_CLI_Connection.png evidence/
+![LocalStack AWS CLI Connection](evidence/01_LocalStack_AWS_CLI_Connection.png)
 
 ---
 
 # TASK A1 — Reconstruct the Management Plane Audit Trail
 
-The purpose of Task A1 is to reconstruct administrative management-plane activity from LocalStack's request log, filter security-relevant events, create a cryptographic digest, store the evidence separately, and verify whether tampering can be detected.
+Every administrative API call is a management plane event. Examples include creating or deleting resources, creating users, attaching policies, and other actions that reconfigure the cloud environment.
 
-In a production cloud environment, management plane events are recorded by an audit service such as CloudTrail and stored separately so that the audit record can survive an attack against the account being audited. LocalStack CloudTrail is not included in the course licence, so the lab reconstructs the trail from the platform request log instead.
+CloudTrail was not used because the required CloudTrail functionality is not included in the LocalStack licence used for this course. Therefore, the management plane trail was reconstructed from LocalStack's own request log.
 
 ---
 
@@ -133,16 +128,13 @@ The `miit-audit-trail` bucket was created and versioning was enabled.
 
 ### Explanation
 
-The audit trail requires a dedicated storage location. Versioning provides additional protection against accidental deletion or overwriting of stored audit evidence.
+The audit trail requires its own storage location. In a real deployment, the audit store should be located in a different account or separate trust boundary from the account being audited.
 
-### Screenshot
+### Evidence
 
-    02_Audit_Trail_Bucket_Creation.png
+![Audit Trail Bucket Creation](evidence/02_Audit_Trail_Bucket_Creation.png)
 
-### Move Screenshot
-
-    mv ~/Pictures/02_Audit_Trail_Bucket_Creation.png evidence/
-
+---
 
 ## Step 6 — Record the Baseline Log Position
 
@@ -153,20 +145,17 @@ The audit trail requires a dedicated storage location. Versioning provides addit
 
 ### Result / Output
 
-The current number of LocalStack log lines was recorded as the baseline.
+    baseline: 349 lines
 
 ### Explanation
 
-The baseline marks the beginning of the observation window so that only the administrative actions generated during the task are extracted.
+The baseline identifies the point at which the observation window begins. This allows the administrative activity generated afterwards to be extracted from the LocalStack request log.
 
-### Screenshot
+### Evidence
 
-    03_Administrative_Management_Actions.png
+![Administrative Management Actions](evidence/03_Administrative_Management_Actions.png)
 
-### Move Screenshot
-
-    mv ~/Pictures/03_Administrative_Management_Actions.png evidence/
-
+---
 
 ## Step 7 — Generate Administrative Management Plane Activity
 
@@ -183,25 +172,22 @@ The baseline marks the beginning of the observation window so that only the admi
 
 ### Result / Output
 
-The administrative actions were successfully performed:
+The administrative actions were performed:
 
-- Created the `miit-throwaway` bucket.
-- Created the `TempContractor` IAM user.
-- Attached the `AdministratorAccess` policy to the user.
-- Deleted the `miit-throwaway` bucket.
+- `CreateBucket` — created `miit-throwaway`.
+- `CreateUser` — created `TempContractor`.
+- `AttachUserPolicy` — attached `AdministratorAccess` to `TempContractor`.
+- `DeleteBucket` — deleted `miit-throwaway`.
 
 ### Explanation
 
-These are management plane actions because they modify the cloud environment itself rather than generating application traffic. An attacker could use similar actions to create identities, grant administrative privileges, and destroy cloud resources.
+These actions modify the cloud environment itself rather than the application workload. An attacker could use similar management plane actions to establish persistence, gain administrative privileges, or disrupt cloud resources.
 
-### Screenshot
+### Evidence
 
-    03_Administrative_Management_Actions.png
+![Administrative Management Actions](evidence/03_Administrative_Management_Actions.png)
 
-### Move Screenshot
-
-    mv ~/Pictures/03_Administrative_Management_Actions.png evidence/
-
+---
 
 ## Step 8 — Extract the Management Plane Trail
 
@@ -218,45 +204,44 @@ The LocalStack request log was extracted into `mgmt-trail.log`.
 
 ### Explanation
 
-LocalStack records AWS API calls in its request log. The extracted file represents the reconstructed management plane audit trail for the observation window.
+LocalStack records AWS API calls in the form:
 
-### Screenshot
+    AWS <service>.<Operation> => <status>
 
-    04_Management_Plane_Audit_Trail.png
+The extracted log therefore provides the raw management plane activity generated after the baseline.
 
-### Move Screenshot
+### Evidence
 
-    mv ~/Pictures/04_Management_Plane_Audit_Trail.png evidence/
+![Management Plane Audit Trail](evidence/04_Management_Plane_Audit_Trail.png)
 
+---
 
 ## Step 9 — Filter Security-Relevant Management Events
 
 ### Command
 
-    grep -E '\.(CreateUser|AttachUserPolicy|DeleteBucket|PutBucketPolicy|DeleteUser|CreateAccessKey|DeleteAccessKey|PutUserPolicy|DeleteUserPolicy)' mgmt-trail.log
+    grep -E '\.(CreateUser|AttachUserPolicy|DeleteUser|CreateBucket|DeleteBucket|PutBucketPolicy|ScheduleKeyDeletion) =>' mgmt-trail.log
 
 ### Result / Output
 
-The management trail was filtered to identify administrative operations that can change identity, permissions, or cloud resources.
+The management trail was filtered to identify security-relevant administrative operations.
 
 ### Explanation
 
-A raw management trail can contain many events. Filtering allows investigators to focus on security-relevant actions, especially actions involving identity, privilege, and resource deletion.
+The raw management trail can contain many events. Filtering focuses the investigation on actions that can change identities, permissions, or important cloud resources.
 
-### Screenshot
+### Evidence
 
-    05_Filtered_Management_Plane_Events.png
+![Filtered Management Plane Events](evidence/05_Filtered_Management_Plane_Events.png)
 
-### Move Screenshot
+---
 
-    mv ~/Pictures/05_Filtered_Management_Plane_Events.png evidence/
-
-
-## Step 10 — Create a SHA-256 Digest
+## Step 10 — Seal the Management Trail with SHA-256
 
 ### Command
 
-    sha256sum mgmt-trail.log | tee mgmt-trail.sha256
+    sha256sum mgmt-trail.log > mgmt-trail.sha256
+    cat mgmt-trail.sha256
 
 ### Result / Output
 
@@ -264,18 +249,17 @@ A SHA-256 digest was generated for `mgmt-trail.log`.
 
 ### Explanation
 
-The digest acts as an integrity seal. If the contents of the audit trail are modified later, recalculating the SHA-256 hash will produce a different value.
+The SHA-256 digest provides a cryptographic integrity check for the audit trail. If the contents of the log are changed, its calculated SHA-256 digest will also change.
 
-### Screenshot
+The digest should be stored separately from the log so that an attacker cannot simply modify both the log and its digest.
 
-    06_Audit_Trail_SHA256_Digest.png
+### Evidence
 
-### Move Screenshot
+![Audit Trail SHA256 Digest](evidence/06_Audit_Trail_SHA256_Digest.png)
 
-    mv ~/Pictures/06_Audit_Trail_SHA256_Digest.png evidence/
+---
 
-
-## Step 11 — Store the Trail and Digest in the Audit Bucket
+## Step 11 — Store the Trail and Digest in the Audit Store
 
 ### Command
 
@@ -284,78 +268,86 @@ The digest acts as an integrity seal. If the contents of the audit trail are mod
 
 ### Result / Output
 
-The management trail and SHA-256 digest were uploaded to `miit-audit-trail`.
+Both the management trail and its SHA-256 digest were uploaded to `miit-audit-trail`.
 
 ### Explanation
 
-The audit evidence is stored in a dedicated audit bucket rather than together with the workload data. In a real deployment, the audit store should be located in a separate account or trust boundary.
+The audit trail and its integrity digest are stored in a separate audit store. In a real cloud deployment, this store should be placed in a different account or trust boundary so that an attacker who compromises the audited account cannot easily modify the evidence.
 
-### Screenshot
+### Evidence
 
-    07_Audit_Trail_Stored_in_Separate_Bucket.png
+![Audit Trail Stored in Separate Bucket](evidence/07_Audit_Trail_Stored_in_Separate_Bucket.png)
 
-### Move Screenshot
+---
 
-    mv ~/Pictures/07_Audit_Trail_Stored_in_Separate_Bucket.png evidence/
-
-
-## Step 12 — Tamper with the Audit Trail and Verify Integrity
+## Step 12 — Tamper with the Audit Trail and Verify the Digest
 
 ### Command
 
-    sed -i '/AttachUserPolicy/d' mgmt-trail.log
+    grep -v 'AttachUserPolicy' mgmt-trail.log > t.log && mv t.log mgmt-trail.log
 
-    sha256sum mgmt-trail.log > check.sha256
+    aws $EP s3 cp s3://miit-audit-trail/mgmt-trail.sha256 ./check.sha256
 
-    diff -q check.sha256 mgmt-trail.sha256
+    sha256sum -c check.sha256
 
 ### Result / Output
 
-The verification failed because the `AttachUserPolicy` event was removed from the local audit trail.
+The verification failed:
+
+    mgmt-trail.log: FAILED
 
 ### Explanation
 
-Removing an event changes the file contents and therefore changes its SHA-256 digest. The mismatch demonstrates that cryptographic hashing can detect modification of the audit record.
+The `AttachUserPolicy` event was removed from the local audit trail. This changed the contents of `mgmt-trail.log`, which caused its SHA-256 digest to differ from the trusted digest retrieved from the audit store.
 
-### Screenshot
+The failed verification demonstrates that the alteration was detected.
 
-    08_Audit_Trail_Tampering_Detected.png
+### Evidence
 
-### Move Screenshot
+![Audit Trail Tampering Detected](evidence/08_Audit_Trail_Tampering_Detected.png)
 
-    mv ~/Pictures/08_Audit_Trail_Tampering_Detected.png evidence/
+---
 
+## Management Plane Investigation
 
-### Management Plane Investigation Notes
+The reconstructed trail proves that an API call occurred, but it does not provide all the information available in a real CloudTrail record.
 
-The reconstructed trail does not contain all the fields that a real CloudTrail record would contain.
+Four important fields present in the real CloudTrail specimen but not reconstructed by this lab are:
 
-Four important fields present in a real CloudTrail record but not fully reconstructed here are:
+1. `userIdentity`
+   - Identifies the identity responsible for the API call.
 
-1. `userIdentity` — identifies the identity responsible for the API call.
-2. `eventTime` — establishes when the event occurred.
-3. `sourceIPAddress` — identifies the source network address of the request.
-4. `requestParameters` — records important parameters supplied to the API operation.
+2. `eventTime`
+   - Establishes when the event occurred.
 
-Other useful CloudTrail fields include `userAgent`, `eventID`, `errorCode`, `readOnly`, and `managementEvent`.
+3. `sourceIPAddress`
+   - Identifies the source address from which the request originated.
 
-The `sourceIPAddress` field is particularly useful because if the same address appears in another investigation, such as the brute-force login investigation from Lab 5, it can correlate the two investigations into one potentially related incident.
+4. `requestParameters`
+   - Shows important parameters supplied to the API operation.
 
-The reconstructed trail is also written by the same platform that served the API calls. An attacker with administrator privileges could potentially modify, delete, or disable the platform's logs. A real deployment prevents this by sending audit records to a separate account or trust boundary with restricted access and appropriate immutability/protection controls.
+Other fields in the real record include `userAgent`, `eventID`, `errorCode`, `readOnly`, and `managementEvent`.
+
+The `sourceIPAddress` field is useful for correlation. If the same source address appears in another investigation, it can connect the two investigations into one potentially related incident.
+
+The reconstructed trail was written by the same platform that served the API calls. An attacker with administrator privileges could potentially modify or delete the platform's logs. A real deployment reduces this risk by sending audit records to a separate trust boundary, such as a separate account, with restricted access and appropriate protection against modification.
+
+None of the four administrative actions used in this task need to generate application traffic. This demonstrates why management plane telemetry must be collected separately from application logs.
 
 ---
 
 # TASK A2 — Backup, and Why Versioning Is Not One
 
-The purpose of Task A2 is to create a primary storage bucket and a genuinely separate backup destination, populate the primary bucket with 200 objects, and synchronise those objects to the DR bucket.
+Task A2 creates a primary storage location and a genuinely separate backup destination.
 
 ---
 
-## Step 13 — Create Primary and DR Backup Buckets
+## Step 13 — Create the Primary and DR Backup Buckets
 
 ### Command
 
     aws $EP s3api create-bucket --bucket miit-primary
+
     aws $EP s3api create-bucket --bucket miit-dr-backup
 
     aws $EP s3api put-bucket-versioning --bucket miit-primary \
@@ -366,7 +358,7 @@ The purpose of Task A2 is to create a primary storage bucket and a genuinely sep
 
 ### Result / Output
 
-The following buckets were created:
+Two buckets were created:
 
 - `miit-primary`
 - `miit-dr-backup`
@@ -375,18 +367,15 @@ Versioning was enabled on both buckets.
 
 ### Explanation
 
-The primary bucket stores the working dataset while the DR bucket provides a separate recovery destination. Although both buckets use versioning, they remain separate storage locations.
+The primary bucket is the main data store, while `miit-dr-backup` provides a separate recovery destination.
 
-### Screenshot
+### Evidence
 
-    09_Primary_and_DR_Backup_Buckets.png
+![Primary and DR Backup Buckets](evidence/09_Primary_and_DR_Backup_Buckets.png)
 
-### Move Screenshot
+---
 
-    mv ~/Pictures/09_Primary_and_DR_Backup_Buckets.png evidence/
-
-
-## Step 14 — Generate and Upload 200 Records
+## Step 14 — Generate and Upload 200 Records to the Primary Bucket
 
 ### Command
 
@@ -394,8 +383,7 @@ The primary bucket stores the working dataset while the DR bucket provides a sep
       echo "patient record $i - $(date)" > /tmp/rec$i.txt
     done
 
-    aws $EP s3 sync /tmp/ s3://miit-primary/records/ \
-      --exclude '*' --include 'rec*.txt'
+    aws $EP s3 sync /tmp/ s3://miit-primary/records/ --exclude '*' --include 'rec*.txt'
 
     aws $EP s3 ls s3://miit-primary/records/ | wc -l
 
@@ -405,16 +393,13 @@ The primary bucket stores the working dataset while the DR bucket provides a sep
 
 ### Explanation
 
-A dataset of 200 record files was generated and uploaded to the primary bucket. The count confirms that all 200 objects were present in the primary bucket.
+Two hundred record files were generated and synchronised to the primary bucket. The object count confirms that all 200 records were present.
 
-### Screenshot
+### Evidence
 
-    10_Primary_Bucket_200_Objects.png
+![Primary Bucket 200 Objects](evidence/10_Primary_Bucket_200_Objects.png)
 
-### Move Screenshot
-
-    mv ~/Pictures/10_Primary_Bucket_200_Objects.png evidence/
-
+---
 
 ## Step 15 — Synchronise the Primary Bucket to the DR Backup
 
@@ -430,23 +415,19 @@ A dataset of 200 record files was generated and uploaded to the primary bucket. 
 
 ### Explanation
 
-The 200 objects were successfully copied from the primary bucket to the separate DR backup bucket.
+The 200 records were successfully synchronised to the separate DR backup bucket.
 
-The separate backup destination provides recovery capability even when the primary storage is affected. Versioning alone is not equivalent to a separate backup because the versions remain within the same bucket and trust boundary.
+Versioning is not the same as a backup. Versioning protects previous object states inside a bucket, while a separate backup provides a copy in another storage location and potentially another trust boundary.
 
-### Screenshot
+### Evidence
 
-    11_DR_Backup_200_Objects.png
-
-### Move Screenshot
-
-    mv ~/Pictures/11_DR_Backup_200_Objects.png evidence/
+![DR Backup 200 Objects](evidence/11_DR_Backup_200_Objects.png)
 
 ---
 
-# TASK A3 — Destructive Incident and Timed Restore
+# TASK A3 — The Restore Drill (Timed)
 
-The purpose of Task A3 is to simulate a destructive incident against the primary bucket, verify the loss of the current objects, restore the objects from the separate DR backup, and measure the recovery time.
+Task A3 simulates a destructive incident and restores the data from the separate DR backup.
 
 ---
 
@@ -464,33 +445,29 @@ The purpose of Task A3 is to simulate a destructive incident against the primary
 
 ### Explanation
 
-The records in the primary bucket were deleted to simulate a destructive incident.
+The 200 current objects in the primary bucket were deleted to simulate a destructive incident.
 
-Because versioning was enabled, delete markers were created instead of permanently removing the previous object versions. However, the current object listing became empty.
+Because versioning was enabled, previous object versions and delete markers remained in the bucket. However, the normal object listing returned zero current objects.
 
-### Screenshot
+### Evidence
 
-    12_Primary_Bucket_Destructive_Incident.png
+![Primary Bucket Destructive Incident](evidence/12_Primary_Bucket_Destructive_Incident.png)
 
-### Move Screenshot
+---
 
-    mv ~/Pictures/12_Primary_Bucket_Destructive_Incident.png evidence/
-
-
-## Step 17 — Restore the Records from the DR Backup and Measure RTO
+## Step 17 — Restore from the DR Backup and Measure RTO
 
 ### Command
 
     START=$(date +%s)
 
-    aws $EP s3 sync s3://miit-dr-backup/records/ s3://miit-primary/records/
+    aws $EP s3 sync s3://miit-dr-backup s3://miit-primary
 
     END=$(date +%s)
 
-    COUNT=$(aws $EP s3 ls s3://miit-primary/records/ | wc -l)
+    echo "Objects restored: $(aws $EP s3 ls s3://miit-primary/records/ | wc -l)"
 
-    echo "Objects restored: $COUNT"
-    echo "MEASURED RTO (seconds): $((END-START))"
+    echo "MEASURED RTO (seconds): $((END - START))"
 
 ### Result / Output
 
@@ -499,51 +476,27 @@ Because versioning was enabled, delete markers were created instead of permanent
 
 ### Explanation
 
-The 200 records were restored successfully from the separate DR backup. The measured Recovery Time Objective (RTO) for this lab restore was **2 seconds**.
+All 200 records were successfully restored from the separate DR backup.
 
-This RTO represents the measured recovery time for 200 objects in the LocalStack lab environment. It should not be treated as a production-scale RTO.
+The measured RTO for this dataset was:
 
-### Screenshot
+    2 seconds
 
-    13_Timed_Restore_Measured_RTO.png
+This is the measured recovery time for 200 objects in the LocalStack laboratory environment.
 
-### Move Screenshot
+### Evidence
 
-    mv ~/Pictures/13_Timed_Restore_Measured_RTO.png evidence/
-
-
-## Step 18 — Verify the Restored Primary Bucket
-
-### Command
-
-    aws $EP s3 ls s3://miit-primary/records/ | wc -l
-
-### Result / Output
-
-    200
-
-### Explanation
-
-The primary bucket contained all 200 records after the restore, confirming that the recovery was successful.
-
-### Screenshot
-
-    15_Primary_Bucket_Post_Restore_Verification.png
-
-### Move Screenshot
-
-    mv ~/Pictures/15_Primary_Bucket_Post_Restore_Verification.png evidence/
-
+![Timed Restore and Measured RTO](evidence/13_Timed_Restore_Measured_RTO.png)
 
 ---
 
-# TASK A4 — Versioning, Delete Markers, and Recovery Paths
+# TASK A4 — Compare the Two Recovery Paths
 
-The purpose of Task A4 is to examine the object versions and delete markers created by the destructive incident and compare in-place versioning with recovery from a separate backup bucket.
+Task A4 compares recovery using in-place versioning with recovery from the separate backup bucket.
 
 ---
 
-## Step 19 — Count Delete Markers
+## Step 18 — Count Delete Markers
 
 ### Command
 
@@ -556,18 +509,15 @@ The purpose of Task A4 is to examine the object versions and delete markers crea
 
 ### Explanation
 
-There were 200 delete markers because the 200 objects were deleted while versioning was enabled.
+There were 200 delete markers in the primary bucket. The delete operation created delete markers because versioning was enabled.
 
-### Screenshot
+### Evidence
 
-    14_Versioning_Delete_Markers_and_Versions.png
+![Versioning Delete Markers and Versions](evidence/14_Versioning_Delete_Markers_and_Versions.png)
 
-### Move Screenshot
+---
 
-    mv ~/Pictures/14_Versioning_Delete_Markers_and_Versions.png evidence/
-
-
-## Step 20 — Count Object Versions
+## Step 19 — Count Object Versions
 
 ### Command
 
@@ -580,18 +530,17 @@ There were 200 delete markers because the 200 objects were deleted while version
 
 ### Explanation
 
-The primary bucket contained 400 object versions. The versions demonstrate that versioning retained previous object states even after the delete operation.
+There were 400 retained object versions in the primary bucket.
 
-### Screenshot
+The result demonstrates that versioning retained object versions underneath the delete markers.
 
-    14_Versioning_Delete_Markers_and_Versions.png
+### Evidence
 
-### Move Screenshot
+![Versioning Delete Markers and Versions](evidence/14_Versioning_Delete_Markers_and_Versions.png)
 
-    mv ~/Pictures/14_Versioning_Delete_Markers_and_Versions.png evidence/
+---
 
-
-## Step 21 — Verify Recovery from the Primary Bucket
+## Step 20 — Verify the Restored Primary Bucket
 
 ### Command
 
@@ -603,21 +552,222 @@ The primary bucket contained 400 object versions. The versions demonstrate that 
 
 ### Explanation
 
-The primary bucket contained 200 objects after the DR restore.
+The primary bucket contained 200 records after the restore, confirming that the data recovery was successful.
 
-### Screenshot
+### Evidence
 
-    15_Primary_Bucket_Post_Restore_Verification.png
+![Primary Bucket Post Restore Verification](evidence/15_Primary_Bucket_Post_Restore_Verification.png)
 
-### Move Screenshot
+---
 
-    mv ~/Pictures/15_Primary_Bucket_Post_Restore_Verification.png evidence/
+# RTO and RPO Results
+
+| Measure | Result |
+|---|---|
+| Primary objects before incident | 200 |
+| DR backup objects after sync | 200 |
+| Primary objects immediately after deletion | 0 |
+| Objects restored | 200 |
+| Measured RTO | 2 seconds |
+| Delete markers | 200 |
+| Object versions | 400 |
+| RPO | Time between the last pre-incident sync and the incident |
+
+## Measured RTO
+
+The measured RTO for 200 objects was:
+
+    2 seconds
+
+This is a laboratory measurement using LocalStack and should not be treated as a production RTO.
+
+## Extrapolated RTO for 1,000,000 Objects
+
+Using a simple linear scaling assumption:
+
+    2 seconds × (1,000,000 / 200)
+    = 10,000 seconds
+
+Therefore:
+
+    10,000 seconds
+    ≈ 166.67 minutes
+    ≈ 2.78 hours
+
+The extrapolated RTO is therefore approximately:
+
+    2.78 hours
+
+The main assumption is that restore throughput scales linearly with the number of objects. This is an important limitation because real production throughput may not scale linearly due to network performance, object size, API limits, concurrency, storage performance, and other factors.
+
+## RPO
+
+RPO is the time between the most recent successful backup/synchronisation and the incident.
+
+In this lab, the exact timestamps of the last pre-incident synchronisation and the destructive incident were not recorded. Therefore, an exact numerical RPO cannot be stated without inventing a value.
+
+The correct interpretation is:
+
+    RPO = time between the last pre-incident S3 sync and the incident
+
+Data written during that interval would potentially be lost.
+
+---
+
+# Recovery Path Comparison
+
+| Recovery Factor | Versioning (In-Place) | Separate Backup Bucket |
+|---|---|---|
+| Recovery speed | Usually faster for object-level recovery because previous versions remain in the same bucket | Requires restoring/copying data from another bucket |
+| Survives bucket deletion? | No. The versions are inside the same bucket | Yes, if the separate backup remains unaffected |
+| Survives a compromised admin credential? | Not necessarily. A compromised administrator may be able to affect the bucket and its versions | Potentially yes if the backup is protected by a separate trust boundary and separate access controls |
+| Survives cryptographic erasure of the KMS key? | No if the retained versions depend on the erased key | Only if the backup uses an independently protected key that remains available |
+| Cost profile | Additional storage cost for retained versions | Additional storage plus backup and restore operations |
+
+---
+
+# Short-Answer Questions
+
+## Question 1
+
+### Question
+
+Name three administrative actions that would appear in a management plane trail but produce no application log at all. For each, state what an attacker gains by performing it.
+
+### Answer
+
+### 1. CreateUser
+
+An attacker can create a new cloud identity that can be used for persistence or further activity.
+
+### 2. AttachUserPolicy
+
+An attacker can attach a privileged policy such as `AdministratorAccess`, gaining administrative control over cloud resources.
+
+### 3. DeleteBucket
+
+An attacker can delete cloud storage resources and disrupt or destroy access to stored data.
+
+These actions occur at the management plane and do not necessarily generate application traffic because the workload does not receive these management API calls.
+
+---
+
+## Question 2
+
+### Question
+
+CloudTrail log file validation, the digest sealed in Task A1, and the hash chain built in Lab 5 Task 4 all solve the same problem by the same mechanism. Explain the mechanism, and state why the digest must be written to a different trust boundary from the account it audits.
+
+### Answer
+
+All three mechanisms use cryptographic hashing to detect changes to data.
+
+A hash is calculated from the original log data. If the log is modified, its resulting hash changes. Comparing the new hash with the trusted original digest therefore allows modification to be detected.
+
+The digest must be stored in a different trust boundary because an attacker who compromises the audited account may also be able to modify the log. If the digest is stored beside the log in the same compromised environment, the attacker could modify both the log and its digest.
+
+Storing the digest in a separate trust boundary makes it more difficult for the attacker to alter both the evidence and its integrity record.
+
+---
+
+## Question 3
+
+### Question
+
+Distinguish RTO from RPO using your own measured figures. Which of the two is improved by taking backups more frequently, and which by restoring faster?
+
+### Answer
+
+RTO and RPO describe different recovery objectives.
+
+**RTO (Recovery Time Objective)** is concerned with how quickly the system or data can be restored after an incident.
+
+The measured RTO in this lab was:
+
+    2 seconds for 200 objects
+
+**RPO (Recovery Point Objective)** is concerned with how much data could potentially be lost between the last successful backup and the incident.
+
+More frequent backups improve **RPO** because the time between backup points becomes shorter.
+
+Faster restoration improves **RTO** because the recovery process completes more quickly.
+
+Therefore:
+
+- More frequent backups → improves RPO.
+- Faster restoration → improves RTO.
+
+---
+
+## Question 4
+
+### Question
+
+Your measured RTO was a few seconds. Explain why you should not report that number to a board, and what you would report instead.
+
+### Answer
+
+The measured 2-second RTO was obtained using only 200 objects in a LocalStack laboratory environment. It does not represent the performance of a real production environment.
+
+A production environment could contain a much larger dataset and could have different network throughput, storage performance, object sizes, API limits, and concurrency.
+
+For this lab, a simple linear extrapolation to 1,000,000 objects gives:
+
+    2 × (1,000,000 / 200)
+    = 10,000 seconds
+    ≈ 2.78 hours
+
+I would report the validated production RTO from a realistic restore test. If production testing was not available, I would report the extrapolated estimate clearly as an estimate and state that it assumes linear scaling.
+
+---
+
+## Question 5
+
+### Question
+
+Using your A4 table, state one incident that versioning survives and the separate backup does not, and one that the backup survives and versioning does not.
+
+### Answer
+
+Versioning can survive an **individual object deletion or overwrite** because previous object versions remain available in the same bucket.
+
+A separate backup can survive **deletion of the primary bucket** if the backup is stored separately and remains unaffected. Versioning does not provide this protection because the versions are stored inside the same bucket.
+
+A separate backup can also provide stronger resilience against compromise of the primary account when the backup is placed in a separate trust boundary with separate access controls.
+
+---
+
+# Debrief Notes
+
+The following points are important for the debrief discussion.
+
+## Extrapolated RTO
+
+The simple extrapolated RTO for 1,000,000 objects is approximately:
+
+    2.78 hours
+
+The assumption most sensitive to error is linear scaling of throughput. Real restore performance may not scale linearly with object count.
+
+## Four-Hour RTO Promise
+
+The simple extrapolation of approximately 2.78 hours is below four hours, but this does not prove that a four-hour production RTO is defensible.
+
+A realistic production restore test would be required before making a reliable commitment to a four-hour RTO.
+
+## Administrator Policy Alert
+
+An `AttachUserPolicy` action that grants `AdministratorAccess` should generate a security alert because it represents a significant privilege change.
+
+## Compromised Administrator Credential
+
+If an attacker obtains administrator credentials, controls located inside the same trust boundary may also be exposed. A separately protected audit store and a separately protected backup destination provide stronger resilience because the attacker may not have equivalent access to those stores.
 
 ---
 
 # Evidence Summary
 
-The following evidence was collected for the lab:
+The following evidence was collected:
 
 1. `01_LocalStack_AWS_CLI_Connection.png`
 2. `02_Audit_Trail_Bucket_Creation.png`
@@ -637,180 +787,29 @@ The following evidence was collected for the lab:
 
 ---
 
-# RTO and RPO Table
-
-| Metric | Result | Explanation |
-|---|---:|---|
-| Objects in primary before incident | 200 | Initial dataset size |
-| Objects in DR backup | 200 | Backup successfully synchronised |
-| Objects after destructive incident | 0 | Current primary listing after deletion |
-| Objects restored | 200 | All records restored from DR |
-| Measured RTO | 2 seconds | Measured restore time for 200 objects in LocalStack |
-| Extrapolated RTO for 1,000,000 objects | 10,000 seconds ≈ 166.67 minutes ≈ 2.78 hours | Simple linear extrapolation from the 200-object measurement |
-| RPO | Time between the last pre-incident backup sync and the incident | Exact elapsed time was not timestamped during this run, so an exact numerical RPO cannot be honestly reported |
-
-### RTO Calculation
-
-Using the lab's measured RTO:
-
-    2 seconds × (1,000,000 / 200)
-    = 10,000 seconds
-    ≈ 166.67 minutes
-    ≈ 2.78 hours
-
-This is only a simple linear estimate. Real production performance may differ because of object count, object size, network throughput, API limits, concurrency, storage performance, and other operational factors.
-
-### RPO Explanation
-
-RPO represents the amount of data that could potentially be lost, measured as the time between the most recent successful backup and the incident.
-
-In this lab, the exact timestamps for the pre-incident sync and incident were not recorded, so the exact RPO duration cannot be calculated without inventing a value.
-
-More frequent backups reduce the potential RPO, while faster restoration improves RTO.
-
----
-
-# Recovery Path Comparison
-
-| Recovery Factor | Versioning (In-Place) | Separate Backup Bucket |
-|---|---|---|
-| Recovery speed | Usually faster for object-level recovery because previous versions remain in the same bucket | Requires copying/restoring data from another bucket, so it may take longer |
-| Survives bucket deletion? | No. Versions are stored in the same bucket | Yes, if the separate backup bucket remains unaffected |
-| Survives a compromised admin credential? | Not necessarily. An administrator with access to the bucket may also affect versions | Potentially yes if the backup uses a separate trust boundary and restricted credentials |
-| Survives cryptographic erasure of the KMS key? | No if the retained versions depend on the erased key | Only if the backup uses an independently protected key that remains available |
-| Cost profile | Additional storage is required for retained object versions | Additional storage plus backup/restore operations are required |
-
----
-
-# Short-Answer Questions
-
-## Question 1
-
-### Question
-
-Name three administrative actions that would appear in a management plane trail but produce no application log at all. For each, state what an attacker gains by performing it.
-
-### Answer
-
-Three examples are:
-
-1. **CreateUser**
-   - Creates a new identity controlled by the attacker.
-   - The attacker gains an additional account that can potentially be used for persistence or further actions.
-
-2. **AttachUserPolicy**
-   - Allows an attacker to attach a policy such as `AdministratorAccess`.
-   - The attacker gains elevated privileges and can perform highly privileged cloud management actions.
-
-3. **DeleteBucket**
-   - Deletes a cloud storage resource.
-   - The attacker can destroy or disrupt stored data and cause service availability or data-loss impact.
-
-These actions can happen entirely at the management plane and may not generate application traffic because the workload itself does not receive the request.
-
----
-
-## Question 2
-
-### Question
-
-CloudTrail log file validation, the digest sealed in Task A1, and the hash chain built in Lab 5 Task 4 all solve the same problem by the same mechanism. Explain the mechanism, and state why the digest must be written to a different trust boundary from the account it audits.
-
-### Answer
-
-All three mechanisms use **cryptographic hashing** to detect changes to data.
-
-A hash is calculated from the original log content. If the log is modified, even slightly, the resulting hash changes. Comparing the stored trusted hash with a newly calculated hash can therefore reveal whether the log was modified.
-
-The digest must be stored in a **different trust boundary** because an attacker who compromises the audited account may also gain enough privileges to modify both the log and its digest. If both are stored in the same compromised environment, the attacker could replace the digest after modifying the log and make the evidence appear valid.
-
-A separate account or trust boundary makes it much harder for an attacker in the audited account to modify the audit evidence and its integrity record at the same time.
-
----
-
-## Question 3
-
-### Question
-
-Distinguish RTO from RPO using your own measured figures. Which of the two is improved by taking backups more frequently, and which by restoring faster?
-
-### Answer
-
-**RTO (Recovery Time Objective)** is the target or measured time required to restore the service or data after an incident.
-
-In this lab, the measured RTO was:
-
-    2 seconds for 200 objects
-
-**RPO (Recovery Point Objective)** is the amount of data or time that may be lost between the most recent successful backup and the incident.
-
-Taking backups more frequently improves **RPO** because less time exists between backup points.
-
-Restoring faster improves **RTO** because the system returns to operation more quickly.
-
-Therefore:
-
-- More frequent backups → improves RPO.
-- Faster restoration → improves RTO.
-
----
-
-## Question 4
-
-### Question
-
-Your measured RTO was a few seconds. Explain why you should not report that number to a board, and what you would report instead.
-
-### Answer
-
-The measured 2-second RTO was obtained using only 200 objects in a LocalStack laboratory environment. It does not represent the performance of a real production environment containing potentially millions of objects.
-
-Instead of reporting the 2-second value as a production guarantee, I would report a validated production RTO based on realistic workload size, object sizes, network conditions, restore mechanisms, and testing.
-
-For this lab, a simple linear extrapolation gives:
-
-    2 seconds × (1,000,000 / 200)
-    = 10,000 seconds
-    ≈ 2.78 hours
-
-This estimate should be clearly labelled as an extrapolation rather than a guaranteed production RTO.
-
----
-
-## Question 5
-
-### Question
-
-Using your A4 table, state one incident that versioning survives and the separate backup does not, and one that the backup survives and versioning does not.
-
-### Answer
-
-An incident that **versioning can survive** is an accidental deletion or overwrite of individual objects. The previous versions remain available in the same bucket, allowing the object to be recovered.
-
-An incident that **the separate backup can survive but versioning cannot** is deletion of the entire primary bucket or compromise of the primary storage account. Versioning is located inside the same bucket and trust boundary, while a properly separated backup can remain available in another bucket, account, or trust boundary.
-
----
-
 # Conclusion
 
-This lab demonstrated that management plane activity is an important source of security telemetry because administrative cloud actions may not appear in application logs. A management trail was reconstructed from LocalStack request logs, filtered for security-relevant events, and protected using a SHA-256 digest. The tampering test showed that modifying the trail changed its digest and caused verification to fail.
+This lab demonstrated the importance of management plane auditing and tested disaster recovery using a separate backup destination.
 
-The BCDR exercise demonstrated the difference between versioning and a separate backup destination. The primary bucket contained 200 objects, which were synchronised to the DR backup. After the primary records were deleted, all 200 records were successfully restored from the DR bucket with a measured RTO of 2 seconds in the lab environment. The primary bucket also showed 200 delete markers and 400 retained versions.
+The management plane audit trail was reconstructed from LocalStack request logs because CloudTrail was not available in the LocalStack licence used for the course. Security-relevant administrative actions were filtered, the resulting trail was sealed with a SHA-256 digest, and the trail was stored together with its digest in a separate audit bucket. After the `AttachUserPolicy` event was removed, SHA-256 verification failed, demonstrating that the tampering was detected.
 
-The results show that versioning is useful for object-level recovery, while a separate backup provides stronger resilience against failures or compromise affecting the original bucket or trust boundary. RTO and RPO are different recovery objectives: faster restoration improves RTO, while more frequent backups reduce RPO.
+For disaster recovery, 200 objects were stored in the primary bucket and synchronised to a separate DR backup bucket. After the primary records were deleted, all 200 objects were restored successfully from the DR backup. The measured RTO was 2 seconds for the 200-object laboratory dataset.
+
+The primary bucket contained 200 delete markers and 400 retained versions after the destructive deletion. This demonstrated that versioning can help recover individual object changes, but versioning is not equivalent to a separate backup. A separate backup provides stronger protection against incidents such as primary bucket deletion or compromise when it is maintained in a separate trust boundary.
+
+The measured RTO should not be treated as a production guarantee. A simple linear extrapolation gives approximately 2.78 hours for 1,000,000 objects, but realistic production testing is required to establish a defensible RTO. RPO depends on the interval between the most recent backup and the incident, while faster restoration improves RTO.
 
 ---
 
 # Cleanup
 
-The following commands can be used to remove the lab resources after completing the assessment:
+The following commands remove the lab resources after the assessment:
 
     aws $EP s3 rb s3://miit-dr-backup --force
 
     aws $EP s3 rb s3://miit-audit-trail --force
 
-    aws $EP iam detach-user-policy \
-      --user-name TempContractor \
+    aws $EP iam detach-user-policy --user-name TempContractor \
       --policy-arn arn:aws:iam::aws:policy/AdministratorAccess
 
     aws $EP iam delete-user --user-name TempContractor
@@ -823,10 +822,11 @@ The following commands can be used to remove the lab resources after completing 
 
 # References
 
-1. IKB42603 Cloud Computing Security Essentials Lab Manual — Lab 5.1: Management Plane Audit and BCDR.
-2. IKB42603 Cloud Computing Security Essentials — Week 2 lecture materials.
-3. IKB42603 Cloud Computing Security Essentials — Week 6 lecture materials.
-4. AWS CloudTrail log file validation documentation.
-5. Cloud Security Alliance (CSA) Security Guidance v5 — Domains 6 and 11.
-6. IKB42603 Lab 5 — Monitoring, Logging and Incident Detection.
-7. IKB42603 Lab 6 — Versioning and Delete Markers.
+1. IKB42603 Cloud Computing Security Essentials — Lab 5 Addendum: Management Plane Audit, Backup & the Restore Drill.
+2. Course lectures — Week 2: Security Design & Architecture.
+3. Course lectures — Week 6: Monitoring, Auditing & Management.
+4. AWS CloudTrail log file integrity validation documentation.
+5. CSA Security Guidance v5 — Domain 6: Security Monitoring.
+6. CSA Security Guidance v5 — Domain 11: Incident Response & Resilience.
+7. IKB42603 Lab 5 — Monitoring, Logging & Incident Detection.
+8. IKB42603 Lab 6 — Object Storage Security, including versioning and delete markers.
