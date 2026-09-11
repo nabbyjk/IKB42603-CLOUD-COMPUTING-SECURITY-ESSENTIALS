@@ -1,7 +1,6 @@
 # IKB42603 Cloud Computing Security Essentials
 ## Lab 6 — Object Storage Security & Data Security Lifecycle
-
-**Student ID:** [INSERT YOUR STUDENT ID]  
+  
 **Course:** IKB42603 Cloud Computing Security Essentials  
 **Lab:** Lab 6  
 **Platform:** Amazon S3 on LocalStack
